@@ -1,8 +1,16 @@
 # ComfyUI image for MiniMax-H3 on RTX PRO 6000 Blackwell (SM120).
-# Built from THIS fork's source (pins ComfyUI to the fork commit). Maintained prebuilts
-# (ai-dock) are stale (Nov 2024: ComfyUI 0.2.x / torch cu121) and can't compute on sm_120.
-# CUDA 12.8 base + torch cu128 (Blackwell kernels). Models mount from a PVC at runtime.
+# Pinned to a tagged upstream ComfyUI RELEASE (COMFYUI_REF below), cloned at build
+# time straight from comfyanonymous/ComfyUI -- not this fork's floating master. H3
+# support is in ComfyUI core, so the fork carries no ComfyUI patches, only this
+# Dockerfile + its workflow; bumping the renderer is a one-line COMFYUI_REF change.
+# Maintained prebuilts (ai-dock) are stale (Nov 2024: ComfyUI 0.2.x / torch cu121)
+# and can't compute on sm_120. CUDA 12.8 base + torch cu128 (Blackwell kernels).
+# Models mount from a PVC at runtime.
 FROM nvidia/cuda:12.8.1-runtime-ubuntu22.04
+
+# Latest stable ComfyUI GitHub release (v0.35.0, published 2026-09-09). Bump this
+# (and the image tag in .github/workflows/build-comfyui-h3.yml) to move the renderer.
+ARG COMFYUI_REF=v0.35.0
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
@@ -18,11 +26,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Blackwell-capable torch FIRST so ComfyUI's requirements don't pull a non-cu128 build.
 RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
-# ComfyUI source from this fork (H3 support is in core).
-COPY . /opt/ComfyUI
-RUN cd /opt/ComfyUI \
+# ComfyUI source pinned to the release tag (H3 support is in core).
+RUN git clone --depth 1 --branch "${COMFYUI_REF}" \
+      https://github.com/comfyanonymous/ComfyUI.git /opt/ComfyUI \
+    && cd /opt/ComfyUI \
     && pip3 install -r requirements.txt \
     && pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+
+LABEL org.opencontainers.image.title="comfyui-h3" \
+      org.opencontainers.image.description="ComfyUI ${COMFYUI_REF} for MiniMax-H3 on SM120" \
+      org.opencontainers.image.source="https://github.com/comfyanonymous/ComfyUI"
 
 WORKDIR /opt/ComfyUI
 EXPOSE 8188
